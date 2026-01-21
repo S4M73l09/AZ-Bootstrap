@@ -252,14 +252,99 @@ jobs:
           fi
         working-directory: ./30-networking
 
+  plan_shared:
+    name: 'Drift Plan (shared-services)'
+    runs-on: ubuntu-latest
+    needs: plan_networking
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: >-
+            ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./40-shared-services
+
+      - name: Terraform Plan (drift)
+        id: plan_shared
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -input=false -no-color \
+            -out=tfplan > plan.txt
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+        working-directory: ./40-shared-services
+
+      - name: Write Drift Summary (shared-services)
+        run: |
+          exit_code="${{ steps.plan_shared.outputs.exit_code }}"
+          if [ "$exit_code" = "0" ]; then
+            echo "## Shared-services drift: none detected" \
+              >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$exit_code" = "2" ]; then
+            echo "## Shared-services drift detected" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Plan excerpt:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 200 plan.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Shared-services drift plan failed" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+        working-directory: ./40-shared-services
+
+      - name: Generate Plan Output (shared-services)
+        run: |
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan.show.txt
+          fi
+        working-directory: ./40-shared-services
+
+      - name: Upload Drift Artifacts (shared-services)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-services-drift-plan
+          path: |
+            40-shared-services/tfplan
+            40-shared-services/plan.txt
+            40-shared-services/plan.show.txt
+
+      - name: Fail if drift detected (shared-services)
+        run: |
+          exit_code="${{ steps.plan_shared.outputs.exit_code }}"
+          if [ "$exit_code" = "2" ]; then
+            exit 2
+          elif [ "$exit_code" != "0" ]; then
+            exit 1
+          fi
+        working-directory: ./40-shared-services
+
   notify:
     name: 'Notify Drift Failure'
     runs-on: ubuntu-latest
-    needs: [plan_governance, plan_logging, plan_networking]
+    needs: [plan_governance, plan_logging, plan_networking, plan_shared]
     if: >-
       ${{ always() && (needs.plan_governance.result == 'failure' ||
       needs.plan_logging.result == 'failure' ||
-      needs.plan_networking.result == 'failure') }}
+      needs.plan_networking.result == 'failure' ||
+      needs.plan_shared.result == 'failure') }}
 
     steps:
       - name: Send email on drift failure

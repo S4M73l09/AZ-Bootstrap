@@ -69,6 +69,7 @@ Cada etapa tiene su propio state en la misma Storage Account y contenedor, con `
 - `10-governance/` -> `10-governance.tfstate`
 - `20-logging/` -> `20-logging.tfstate`
 - `30-networking/` -> `30-networking.tfstate`
+- `40-shared-services/` -> `40-shared-services.tfstate`
 
 ## Gobernanza (10-governance)
 
@@ -104,6 +105,16 @@ Se crea red dedicada para Private Endpoints:
 
 Nota: para bloquear acceso publico, usar `public_network_access_enabled = false` en la Storage Account de archive y deshabilitar acceso publico en la Storage Account del state (si ya existe, hacerlo via `az storage account update`).
 
+## Shared services (40-shared-services)
+
+VM minima para self-hosted runner (Linux):
+
+- RG: `rg-bootstrap-shared`
+- VM: `vm-bootstrap-runner` (B1s)
+- Subnet: `10.10.2.0/24`
+- SSH: clave publica en `ssh_public_key`
+- NSG: permite SSH desde `ssh_allowed_cidrs` (ajusta en produccion)
+
 ## Siguientes Pasos: Automatización con GitHub Actions (OIDC)
 
 El siguiente paso es automatizar los despliegues con GitHub Actions usando **OIDC** (sin secrets). El flujo general es:
@@ -111,7 +122,7 @@ El siguiente paso es automatizar los despliegues con GitHub Actions usando **OID
 1.  **Registrar una App en Azure Entra ID**: Se crea una identidad para GitHub Actions.
 2.  **Configurar Federated Credentials**: Se liga el repo y la rama (`refs/heads/main`).
 3.  **Asignar RBAC**: Dar permisos mínimos sobre la suscripción o grupo de recursos.
-4.  **Crear Workflows**: Se definen los pasos de `plan` y `apply` en `.github/workflows/` para `10-governance/`, `20-logging/` y `30-networking/`, con aprobación manual vía `environment`.
+4.  **Crear Workflows**: Se definen los pasos de `plan` y `apply` en `.github/workflows/` para `10-governance/`, `20-logging/`, `30-networking/` y `40-shared-services/`, con aprobación manual vía `environment`.
 
 Con esto, el proceso de CI/CD para la infraestructura queda establecido sin manejar claves.
 
@@ -120,7 +131,7 @@ Con esto, el proceso de CI/CD para la infraestructura queda establecido sin mane
 Workflow separado en `.github/workflows/drift.yml`:
 
 - Corre diario (cron) y manual (`workflow_dispatch`)
-- Ejecuta `terraform plan -detailed-exitcode` en `10-governance/`, `20-logging/` y `30-networking/`
+- Ejecuta `terraform plan -detailed-exitcode` en `10-governance/`, `20-logging/`, `30-networking/` y `40-shared-services/`
 - Publica resumen en Job Summary (incluye extracto del plan si hay drift)
 - Sube artifacts: `tfplan`, `plan.txt`, `plan.show.txt`
 - Envía email con Gmail usando:
@@ -194,6 +205,13 @@ terraform plan
 terraform apply
 ```
 
+```bash
+cd 40-shared-services
+terraform init
+terraform plan
+terraform apply
+```
+
 Dónde revisar resultados:
 
 - GitHub Actions: Job Summary y artifacts en el workflow de drift.
@@ -227,5 +245,5 @@ Si aparece un error nuevo, añádelo aquí con su solución para mantener la gu�
 -   `10-governance/`: Contiene la configuración raíz de Terraform para el gobierno de la suscripción.
 -   `20-logging/`: Configuración de logging y diagnósticos.
 -   `30-networking/`: Destinado a los recursos de red centrales.
--   `40-shared-services/`: (Placeholder) Destinado a servicios compartidos.
+-   `40-shared-services/`: VM para self-hosted runner.
 -   `50-custom-roles/`: Destinado a roles personalizados
