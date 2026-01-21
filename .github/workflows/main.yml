@@ -44,7 +44,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Fmt
-        run: terraform fmt -check
+        run: terraform fmt -recursive -check
         working-directory: ./10-governance
 
       - name: Terraform Init
@@ -83,7 +83,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Fmt
-        run: terraform fmt -check
+        run: terraform fmt -recursive -check
         working-directory: ./20-logging
 
       - name: Terraform Init
@@ -122,7 +122,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Fmt
-        run: terraform fmt -check
+        run: terraform fmt -recursive -check
         working-directory: ./30-networking
 
       - name: Terraform Init
