@@ -99,11 +99,44 @@ jobs:
         run: terraform plan -input=false
         working-directory: ./20-logging
 
-  plan_networking:
-    name: 'Terraform Plan (networking)'
+  check_archive:
+    name: 'Check Archive Storage'
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' || inputs.force == 'true'
     needs: plan_logging
+    permissions:
+      id-token: write  # Necesario para OIDC
+      contents: read
+    outputs:
+      archive_exists: ${{ steps.check.outputs.archive_exists }}
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Check archive storage account
+        id: check
+        run: |
+          if az storage account show \
+            --name stbootlogarchaq7yx \
+            --resource-group rg-bootstraplogging-state-aq7yx \
+            --output none; then
+            echo "archive_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "archive_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  plan_networking:
+    name: 'Terraform Plan (networking)'
+    runs-on: ubuntu-latest
+    if: >-
+      (github.ref == 'refs/heads/main' || inputs.force == 'true') &&
+      needs.check_archive.outputs.archive_exists == 'true'
+    needs: check_archive
     permissions:
       id-token: write  # Necesario para OIDC
       contents: read
