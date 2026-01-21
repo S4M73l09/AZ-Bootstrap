@@ -69,7 +69,7 @@ variable "admin_username" {
 variable "ssh_public_key" {
   description = "SSH public key for the runner VM."
   type        = string
-  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICp/GGdxniBjH6bRZHSIHLQVqVD7cO2RO60qOlSuVYDF runneradmin"
+  default     = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9YXFPZr2rbVzvswG5eykXSdGp5ibhN8QeEBAZrZwHL9SrW2/tDUPyDcUj4CNVdg7wVuY8w56RCCTQZ7W/VsFHMHk4JX02jl6K4EAHBuFNX2z1fSTSrkh2cYgdVGmqAxBJHqgTev5lW4OKiX/GFHLK3L87lOFatsgPQZ78TsgMc2PbDPUc4Y4oT1BfE1MkyTNwf9T9FWW+vJ7WArewvOFmNCbxZPoc69aLzYY3g6V7coSU3xnUrlO94rr+3+EOg3+VXA1B6gPlKG/sKQaoBQ1dm1sX4vLJfJWkqt345hsGXyTTkBmc8c2mESKuflmWXT+WSVr0DbWQQkCVPXYUDRzbYKEn/ZsREDnY1QY0byY/cDE7DSnYTN+KMKreUuQFxVO7wW7CZSY3jjVMixnNb51CUgbXS86T0IS8j/aT668jk3Mcbt8WsvJvc68Q+V38dDwsbU4LaDJHGxjyt1SehVnrhQxiaIF+ScvLFgM2HX82euvpQ5voqY9jA+WqNikYY0wwCwPy7rotVBH+mrpExNaPUwHCc9E5fy0fsPWieHW/odl1hIFOGOddMynYWRI4Gv7yY4PJzk7Z7kpYjvWq+5f1PxvupAbULOc+KPL6uY5bWJwQSaeI1ekC5URdWfKclkEz2UqCAREr48PTDttuZE7An///9EhWbJmZmva8UJUUmQ== runneradmin"
 }
 
 variable "ssh_allowed_cidrs" {

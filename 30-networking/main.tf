@@ -90,7 +90,7 @@ resource "azurerm_subnet" "private_endpoints" {
   virtual_network_name = azurerm_virtual_network.bootstrap.name
   address_prefixes     = var.subnet_cidr
 
-  private_endpoint_network_policies_enabled = false
+  private_endpoint_network_policies = "Disabled"
 }
 
 resource "azurerm_private_dns_zone" "blob" {
