@@ -68,15 +68,15 @@ resource "azurerm_log_analytics_workspace" "bootstrap" {
 }
 
 resource "azurerm_storage_account" "archive" {
-  name                     = var.archive_storage_account_name
-  resource_group_name      = azurerm_resource_group.logging.name
-  location                 = azurerm_resource_group.logging.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  min_tls_version          = "TLS1_2"
-  https_traffic_only_enabled = true
+  name                            = var.archive_storage_account_name
+  resource_group_name             = azurerm_resource_group.logging.name
+  location                        = azurerm_resource_group.logging.location
+  account_tier                    = "Standard"
+  account_replication_type        = "LRS"
+  min_tls_version                 = "TLS1_2"
+  https_traffic_only_enabled      = true
   allow_nested_items_to_be_public = false
-  public_network_access_enabled = false
+  public_network_access_enabled   = false
 }
 
 resource "azurerm_storage_management_policy" "archive_cleanup" {

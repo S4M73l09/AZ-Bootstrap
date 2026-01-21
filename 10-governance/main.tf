@@ -15,7 +15,7 @@ provider "azurerm" {
 variable "bootstrap_rg_name" {
   description = "Resource group scope for bootstrap governance policies."
   type        = string
-  default     = "rg-bootstrap-state-aq7yx" 
+  default     = "rg-bootstrap-state-aq7yx"
 }
 
 variable "required_tags" {
