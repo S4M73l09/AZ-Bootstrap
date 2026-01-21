@@ -17,7 +17,10 @@
     "Microsoft.Insights/metricAlerts/*",
     "Microsoft.Portal/dashboards/*",
     "Microsoft.Storage/storageAccounts/*",
-    "Microsoft.Storage/storageAccounts/managementPolicies/*"
+    "Microsoft.Storage/storageAccounts/managementPolicies/*",
+    "Microsoft.Compute/virtualMachines/read",
+    "Microsoft.Compute/virtualMachines/start/action",
+    "Microsoft.Compute/virtualMachines/deallocate/action"
   ],
   "NotActions": [],
   "AssignableScopes": [
