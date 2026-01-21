@@ -139,7 +139,7 @@ data "azurerm_storage_account" "state" {
 
 resource "azurerm_monitor_diagnostic_setting" "state_storage" {
   name                       = "diag-storage-state"
-  target_resource_id         = data.azurerm_storage_account.state.id
+  target_resource_id         = "${data.azurerm_storage_account.state.id}/blobServices/default"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.bootstrap.id
   storage_account_id         = azurerm_storage_account.archive.id
 
