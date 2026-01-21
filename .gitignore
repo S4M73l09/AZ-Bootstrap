@@ -1,0 +1,37 @@
+# Este archivo le dice a Git qué archivos y patrones ignorar.
+# Es una medida de seguridad crucial para proyectos de Infraestructura como Código.
+
+# == Archivos de Estado de Terraform ==
+# Estos archivos a menudo contienen información sensible en texto plano.
+# Nuestro backend remoto ya soluciona esto, pero esta regla es una doble protección.
+*.tfstate
+*.tfstate.backup
+*.tfstate.d
+
+# == Archivos de Variables ==
+# Es una buena práctica no subir archivos de variables, ya que a menudo contienen secretos.
+# En su lugar, se puede subir un archivo de ejemplo (ej. terraform.tfvars.example)
+# y mantener el archivo real (.tfvars) en local.
+*.tfvars
+*.tfvars.json
+
+# == Archivos de Log de Errores ==
+# Los logs pueden exponer información sensible sobre tu configuración o entorno.
+crash.log
+crash.*.log
+
+# == Directorio .terraform ==
+# Este directorio contiene los plugins de los proveedores y módulos.
+# No debe ser parte del repositorio; se genera localmente con `terraform init`.
+.terraform/
+
+# == Archivos de Anulación (Override) ==
+# Estos archivos son para uso local y no deben compartirse.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# == Archivos de Configuración de la CLI de Terraform ==
+.terraformrc
+terraform.rc

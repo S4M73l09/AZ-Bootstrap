@@ -1,0 +1,219 @@
+---
+name: 'Terraform Bootstrap'
+
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - '10-governance/**'
+
+jobs:
+  plan_governance:
+    name: 'Terraform Plan (governance)'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Necesario para OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Fmt
+        run: terraform fmt -check
+        working-directory: ./10-governance
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./10-governance
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./10-governance
+
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        working-directory: ./10-governance
+
+  plan_logging:
+    name: 'Terraform Plan (logging)'
+    runs-on: ubuntu-latest
+    needs: plan_governance
+    permissions:
+      id-token: write  # Necesario para OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Fmt
+        run: terraform fmt -check
+        working-directory: ./20-logging
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./20-logging
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./20-logging
+
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        working-directory: ./20-logging
+
+  plan_networking:
+    name: 'Terraform Plan (networking)'
+    runs-on: ubuntu-latest
+    needs: plan_logging
+    permissions:
+      id-token: write  # Necesario para OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Fmt
+        run: terraform fmt -check
+        working-directory: ./30-networking
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./30-networking
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./30-networking
+
+      - name: Terraform Plan
+        run: terraform plan -input=false
+        working-directory: ./30-networking
+
+  apply_governance:
+    name: 'Terraform Apply (governance)'
+    runs-on: ubuntu-latest
+    needs: plan_governance
+    if: github.ref == 'refs/heads/main'
+    environment: terraform-apply
+    permissions:
+      id-token: write  # Necesario para OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./10-governance
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false
+        working-directory: ./10-governance
+
+  apply_logging:
+    name: 'Terraform Apply (logging)'
+    runs-on: ubuntu-latest
+    needs: [plan_logging, apply_governance]
+    if: github.ref == 'refs/heads/main'
+    environment: terraform-apply
+    permissions:
+      id-token: write  # Necesario para OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./20-logging
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false
+        working-directory: ./20-logging
+
+  apply_networking:
+    name: 'Terraform Apply (networking)'
+    runs-on: ubuntu-latest
+    needs: [plan_networking, apply_logging]
+    if: github.ref == 'refs/heads/main'
+    environment: terraform-apply
+    permissions:
+      id-token: write  # Necesario para OIDC
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./30-networking
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false
+        working-directory: ./30-networking

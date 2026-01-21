@@ -1,0 +1,278 @@
+---
+name: 'Terraform Drift Detection'
+
+"on":
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  plan_governance:
+    name: 'Drift Plan (governance)'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: >-
+            ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./10-governance
+
+      - name: Terraform Plan (drift)
+        id: plan_governance
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -input=false -no-color \
+            -out=tfplan > plan.txt
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+        working-directory: ./10-governance
+
+      - name: Write Drift Summary (governance)
+        run: |
+          exit_code="${{ steps.plan_governance.outputs.exit_code }}"
+          if [ "$exit_code" = "0" ]; then
+            echo "## Governance drift: none detected" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$exit_code" = "2" ]; then
+            echo "## Governance drift detected" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Plan excerpt:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 200 plan.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Governance drift plan failed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        working-directory: ./10-governance
+
+      - name: Generate Plan Output (governance)
+        run: |
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan.show.txt
+          fi
+        working-directory: ./10-governance
+
+      - name: Upload Drift Artifacts (governance)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: governance-drift-plan
+          path: |
+            10-governance/tfplan
+            10-governance/plan.txt
+            10-governance/plan.show.txt
+
+      - name: Fail if drift detected (governance)
+        run: |
+          exit_code="${{ steps.plan_governance.outputs.exit_code }}"
+          if [ "$exit_code" = "2" ]; then
+            exit 2
+          elif [ "$exit_code" != "0" ]; then
+            exit 1
+          fi
+        working-directory: ./10-governance
+
+  plan_logging:
+    name: 'Drift Plan (logging)'
+    runs-on: ubuntu-latest
+    needs: plan_governance
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: >-
+            ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./20-logging
+
+      - name: Terraform Plan (drift)
+        id: plan_logging
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -input=false -no-color \
+            -out=tfplan > plan.txt
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+        working-directory: ./20-logging
+
+      - name: Write Drift Summary (logging)
+        run: |
+          exit_code="${{ steps.plan_logging.outputs.exit_code }}"
+          if [ "$exit_code" = "0" ]; then
+            echo "## Logging drift: none detected" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$exit_code" = "2" ]; then
+            echo "## Logging drift detected" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Plan excerpt:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 200 plan.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Logging drift plan failed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        working-directory: ./20-logging
+
+      - name: Generate Plan Output (logging)
+        run: |
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan.show.txt
+          fi
+        working-directory: ./20-logging
+
+      - name: Upload Drift Artifacts (logging)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: logging-drift-plan
+          path: |
+            20-logging/tfplan
+            20-logging/plan.txt
+            20-logging/plan.show.txt
+
+      - name: Fail if drift detected (logging)
+        run: |
+          exit_code="${{ steps.plan_logging.outputs.exit_code }}"
+          if [ "$exit_code" = "2" ]; then
+            exit 2
+          elif [ "$exit_code" != "0" ]; then
+            exit 1
+          fi
+        working-directory: ./20-logging
+
+  plan_networking:
+    name: 'Drift Plan (networking)'
+    runs-on: ubuntu-latest
+    needs: plan_logging
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          subscription-id: >-
+            ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./30-networking
+
+      - name: Terraform Plan (drift)
+        id: plan_networking
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -input=false -no-color \
+            -out=tfplan > plan.txt
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+        working-directory: ./30-networking
+
+      - name: Write Drift Summary (networking)
+        run: |
+          exit_code="${{ steps.plan_networking.outputs.exit_code }}"
+          if [ "$exit_code" = "0" ]; then
+            echo "## Networking drift: none detected" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$exit_code" = "2" ]; then
+            echo "## Networking drift detected" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Plan excerpt:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 200 plan.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "## Networking drift plan failed" >> "$GITHUB_STEP_SUMMARY"
+          fi
+        working-directory: ./30-networking
+
+      - name: Generate Plan Output (networking)
+        run: |
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan > plan.show.txt
+          fi
+        working-directory: ./30-networking
+
+      - name: Upload Drift Artifacts (networking)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: networking-drift-plan
+          path: |
+            30-networking/tfplan
+            30-networking/plan.txt
+            30-networking/plan.show.txt
+
+      - name: Fail if drift detected (networking)
+        run: |
+          exit_code="${{ steps.plan_networking.outputs.exit_code }}"
+          if [ "$exit_code" = "2" ]; then
+            exit 2
+          elif [ "$exit_code" != "0" ]; then
+            exit 1
+          fi
+        working-directory: ./30-networking
+
+  notify:
+    name: 'Notify Drift Failure'
+    runs-on: ubuntu-latest
+    needs: [plan_governance, plan_logging, plan_networking]
+    if: >-
+      ${{ always() && (needs.plan_governance.result == 'failure' ||
+      needs.plan_logging.result == 'failure' ||
+      needs.plan_networking.result == 'failure') }}
+
+    steps:
+      - name: Send email on drift failure
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ vars.GMAIL_ALERT }}
+          password: ${{ secrets.AZ_BOOTSTRAP_GMAIL_ALERT }}
+          subject: 'Terraform drift detected'
+          body: >-
+            El workflow de drift detecto cambios en el estado. Revisa GitHub
+            Actions para el detalle.
+          to: ${{ vars.GMAIL_ALERT }}
+          from: ${{ vars.GMAIL_ALERT }}
