@@ -24,7 +24,7 @@ jobs:
         uses: azure/login@v1
         with:
           client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
-          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
           subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
@@ -62,7 +62,7 @@ jobs:
         uses: azure/login@v1
         with:
           client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
-          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
           subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
@@ -100,7 +100,7 @@ jobs:
         uses: azure/login@v1
         with:
           client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
-          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
           subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
@@ -140,7 +140,7 @@ jobs:
         uses: azure/login@v1
         with:
           client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
-          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
           subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
@@ -172,7 +172,7 @@ jobs:
         uses: azure/login@v1
         with:
           client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
-          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
           subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
@@ -204,7 +204,7 @@ jobs:
         uses: azure/login@v1
         with:
           client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
-          tenant-id: ${{ vars.AZ_TENANT_ID }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
           subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
