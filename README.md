@@ -217,6 +217,17 @@ Dónde revisar resultados:
 - GitHub Actions: Job Summary y artifacts en el workflow de drift.
 - Para aplicar cambios manuales, usa el workflow principal con `environment` de aprobación.
 
+## Orden de despliegue
+
+Orden recomendado (por dependencias entre stages):
+
+1. `10-governance/`
+2. `20-logging/`
+3. `30-networking/` (requiere el Storage Account de archive)
+4. `40-shared-services/` (requiere la VNet)
+
+El workflow aplica este orden y omite `30-networking/` si el archive no existe.
+
 ## Troubleshooting
 
 Errores comunes y soluciones:
