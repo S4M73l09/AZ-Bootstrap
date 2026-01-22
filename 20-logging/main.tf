@@ -157,6 +157,10 @@ resource "azurerm_monitor_diagnostic_setting" "state_storage" {
     category = "Transaction"
     enabled  = true
   }
+
+  lifecycle {
+    ignore_changes = [metric]
+  }
 }
 
 resource "azurerm_monitor_action_group" "bootstrap" {
