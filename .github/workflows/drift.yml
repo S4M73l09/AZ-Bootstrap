@@ -50,7 +50,17 @@ jobs:
           subscription-id: >-
             ${{ vars.AZ_SUBSCRIPTION_ID }}
 
+      - name: Check Terraform
+        id: tf
+        run: |
+          if command -v terraform >/dev/null 2>&1; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Terraform
+        if: steps.tf.outputs.installed == 'false'
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
@@ -132,7 +142,17 @@ jobs:
           subscription-id: >-
             ${{ vars.AZ_SUBSCRIPTION_ID }}
 
+      - name: Check Terraform
+        id: tf
+        run: |
+          if command -v terraform >/dev/null 2>&1; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Terraform
+        if: steps.tf.outputs.installed == 'false'
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
@@ -246,7 +266,17 @@ jobs:
           subscription-id: >-
             ${{ vars.AZ_SUBSCRIPTION_ID }}
 
+      - name: Check Terraform
+        id: tf
+        run: |
+          if command -v terraform >/dev/null 2>&1; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Terraform
+        if: steps.tf.outputs.installed == 'false'
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
@@ -328,7 +358,17 @@ jobs:
           subscription-id: >-
             ${{ vars.AZ_SUBSCRIPTION_ID }}
 
+      - name: Check Terraform
+        id: tf
+        run: |
+          if command -v terraform >/dev/null 2>&1; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Terraform
+        if: steps.tf.outputs.installed == 'false'
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Init
