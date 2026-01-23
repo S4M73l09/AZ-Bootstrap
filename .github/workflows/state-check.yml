@@ -1,0 +1,87 @@
+---
+name: 'Terraform State Check'
+
+"on":
+  workflow_dispatch: {}
+
+jobs:
+  start_runner:
+    name: 'Start Runner VM'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Start runner VM
+        run: |
+          az vm start \
+            --resource-group rg-bootstrap-shared \
+            --name vm-bootstrap-runner
+          sleep 30
+
+  check_state:
+    name: 'Check Backend Access'
+    runs-on: [self-hosted, azure]
+    needs: start_runner
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Check Terraform (optional)
+        id: tf
+        run: |
+          if command -v terraform >/dev/null 2>&1; then
+            echo "installed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "installed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Terraform
+        if: steps.tf.outputs.installed == 'false'
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init (state check)
+        run: terraform init -input=false
+        working-directory: ./10-governance
+
+  stop_runner:
+    name: 'Stop Runner VM'
+    runs-on: ubuntu-latest
+    needs: check_state
+    if: ${{ always() }}
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Stop runner VM
+        run: |
+          az vm deallocate \
+            --resource-group rg-bootstrap-shared \
+            --name vm-bootstrap-runner
