@@ -90,6 +90,7 @@ Se crea un RG dedicado `rg-bootstraplogging-state-aq7yx` con un Log Analytics Wo
 - Alertas: eliminación de RG y de Storage Account
 - Action Group: email definido en `alert_email`
 - Dashboard: portal dashboard básico con referencia al workspace
+- Nota: se ignoran cambios en `metric` del diagnostic setting para evitar drift de Azure (ver `ignore_changes`).
 
 ## Networking (30-networking)
 
@@ -115,6 +116,31 @@ VM minima para self-hosted runner (Linux):
 - SSH: clave publica en `ssh_public_key`
 - NSG: permite SSH desde `ssh_allowed_cidrs` (ajusta en produccion)
 
+## Runner self-hosted (GitHub Actions)
+
+Pasos resumidos:
+
+1. Crear la VM con `40-shared-services/`.
+2. Instalar dependencias en la VM:
+   ```bash
+   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+   sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
+   wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+   echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+   sudo apt-get update && sudo apt-get install -y terraform
+   ```
+3. Registrar runner:
+   - GitHub → Settings → Actions → Runners → New self-hosted runner (Linux)
+   - Ejecutar los comandos en la VM
+   - Instalar y arrancar el servicio:
+     ```bash
+     sudo ./svc.sh install
+     sudo ./svc.sh start
+     ```
+4. Asegurar etiqueta `azure` si usamos `runs-on: [self-hosted, azure]` para mayor seguridad y monitorizacion.
+
+Nota: los workflows incluyen jobs para **encender/apagar** la VM (`start_runner` / `stop_runner`). Ademas de incluir jobs checks `Setup Terraform` para que vea si en el runner esta instalado Terraform, si el check indica que no esta Terraform instalado, dicho paso se activa para que se instale.
+
 ## Siguientes Pasos: Automatización con GitHub Actions (OIDC)
 
 El siguiente paso es automatizar los despliegues con GitHub Actions usando **OIDC** (sin secrets). El flujo general es:
@@ -131,12 +157,43 @@ Con esto, el proceso de CI/CD para la infraestructura queda establecido sin mane
 Workflow separado en `.github/workflows/drift.yml`:
 
 - Corre diario (cron) y manual (`workflow_dispatch`)
+- El job de `Setup Terraform` se ejecuta solo si el check verifica que no esta Terraform instalado en el runner.
 - Ejecuta `terraform plan -detailed-exitcode` en `10-governance/`, `20-logging/`, `30-networking/` y `40-shared-services/`
 - Publica resumen en Job Summary (incluye extracto del plan si hay drift)
 - Sube artifacts: `tfplan`, `plan.txt`, `plan.show.txt`
 - Envía email con Gmail usando:
   - `vars.GMAIL_ALERT` (email destino)
   - `secrets.AZ_BOOTSTRAP_GMAIL_ALERT` (app password)
+
+## State check (GitHub Actions)
+
+Workflow manual para verificar acceso al backend:
+
+- Archivo: `.github/workflows/state-check.yml`
+- Usa el runner `self-hosted, azure`
+- Autenticación OIDC y `terraform init` en `10-governance/`
+- Incluye `start_runner` y `stop_runner` para encender/apagar la VM
+
+## Estado privado del backend
+
+Para mantener el state privado:
+
+1. Asegura los tags requeridos en el Storage Account del state (`owner`, `env`, `costCenter`).
+2. Deshabilita el acceso público:
+   ```bash
+   az storage account update \
+     --name stbootstraptfstateaq7yx \
+     --resource-group rg-bootstrap-state-aq7yx \
+     --public-network-access Disabled
+   ```
+3. Verifica el estado:
+   ```bash
+   az storage account show \
+     --name stbootstraptfstateaq7yx \
+     --resource-group rg-bootstrap-state-aq7yx \
+     --query publicNetworkAccess -o tsv
+   ```
+4. Ejecuta el workflow `state-check` para confirmar acceso desde el runner privado.
 
 ## RBAC minimo para OIDC
 
