@@ -88,12 +88,13 @@ Container:       tfstate-staging
 State key:       infra-staging.tfstate
 ```
 
-Ese Resource Group solo contenía el Storage Account del backend. No debe eliminarse
-hasta completar la migración del state.
+Ese Resource Group solo contenía el Storage Account del backend. El Storage Account
+ya fue movido y el grupo antiguo queda pendiente de limpieza, una vez confirmada
+la actualización del backend de `Az-InfraLive`.
 
-### Diseño persistente previsto
+### Diseño persistente implementado
 
-Bootstrap debe ser el propietario de un Resource Group separado para el state de
+Bootstrap es ahora el propietario de un Resource Group separado para el state de
 InfraLive:
 
 ```text
@@ -106,21 +107,27 @@ rg-infralive-state
     └── infra-staging.tfstate
 ```
 
-La etapa `60-infralive-state/` será gestionada por Bootstrap y utilizará una clave
-propia en el backend de Bootstrap, por ejemplo:
+La etapa `60-infralive-state/` está gestionada por Bootstrap y utiliza una clave
+propia en el backend de Bootstrap:
 
 ```text
 60-infralive-state.tfstate
 ```
 
-El flujo de migración es:
+La migración se completó con este flujo:
 
 1. Crear `rg-infralive-state` desde Bootstrap.
 2. Mover `stinfralivest01` desde `rg-infraLive-staging`.
-3. Importar el Resource Group, Storage Account y container en el state de Bootstrap.
-4. Actualizar el `backend.tf` de InfraLive con el nuevo Resource Group.
-5. Verificar el acceso al blob `infra-staging.tfstate`.
-6. Eliminar el antiguo Resource Group solo cuando esté vacío y el backend funcione.
+3. Importar el Storage Account y el container en el state de Bootstrap.
+4. Ejecutar un plan posterior a la importación.
+5. Confirmar `Plan: 0 to add, 0 to change, 0 to destroy`.
+
+Pendientes antes de eliminar el grupo antiguo:
+
+1. Actualizar el `backend.tf` de InfraLive con `rg-infralive-state`.
+2. Verificar el acceso al blob `infra-staging.tfstate` desde el runner.
+3. Confirmar que `rg-infraLive-staging` está vacío.
+4. Eliminar el grupo antiguo mediante una operación aprobada.
 
 ### Verificación del backend con Azure CLI
 
@@ -138,7 +145,7 @@ az group show \
   --output table
 
 az resource list \
-  --resource-group rg-infraLive-staging \
+  --resource-group rg-infralive-state \
   --query "[].{name:name,type:type,location:location}" \
   --output table
 ```
@@ -148,7 +155,7 @@ Consultar el Storage Account del backend:
 ```bash
 az storage account show \
   --name stinfralivest01 \
-  --resource-group rg-infraLive-staging \
+  --resource-group rg-infralive-state \
   --query "{name:name,resourceGroup:resourceGroup,location:primaryLocation}" \
   --output table
 ```
@@ -230,6 +237,24 @@ start_runner
 El job de `apply` no se ejecuta hasta que un revisor aprueba el Environment
 `terraform-apply` en GitHub. El runner se apaga antes de esperar la aprobación para
 evitar mantener una VM encendida innecesariamente.
+
+### Workflow de importación
+
+El workflow manual `.github/workflows/infralive-state-import.yml` permite adoptar
+recursos existentes en el state de `60-infralive-state`:
+
+```text
+workflow_dispatch
+  -> aprobación terraform-apply
+  -> inicio del runner privado
+  -> terraform init
+  -> import del Storage Account y container
+  -> terraform plan
+  -> apagado del runner
+```
+
+El workflow es idempotente: comprueba si cada recurso ya existe en el state antes
+de importarlo. No ejecuta `terraform apply` ni elimina recursos.
 
 ## Gobernanza (10-governance)
 
