@@ -24,7 +24,7 @@ resource "azurerm_storage_account" "infralive_state" {
 
 
 resource "azurerm_storage_container" "terraform_state" {
-  name                  = "tfstate"
-  storage_account_id    = azurerm_storage_account.infralive_state.id
+  name                  = "tfstate-dev"
+  storage_account_name  = azurerm_storage_account.infralive_state.name
   container_access_type = "private"
 }
