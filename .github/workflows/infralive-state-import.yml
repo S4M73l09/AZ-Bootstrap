@@ -87,7 +87,7 @@ jobs:
             --query id \
             --output tsv)
 
-          container_id="${account_id}/blobServices/default/containers/tfstate-staging"
+          container_id="https://stinfralivest01.blob.core.windows.net/tfstate-staging"
 
           if terraform state list | grep -Fxq 'azurerm_storage_account.infralive_state'; then
             echo "Storage Account already exists in Terraform state."
