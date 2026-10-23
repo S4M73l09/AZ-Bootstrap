@@ -1,0 +1,136 @@
+---
+name: "Import InfraLive State Resources"
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: infralive-state-import
+  cancel-in-progress: false
+
+jobs:
+  approval:
+    name: "Approve State Import"
+    runs-on: ubuntu-latest
+    environment:
+      name: terraform-apply
+    permissions:
+      contents: read
+
+    steps:
+      - name: Approval received
+        run: echo "State import approved"
+
+  start_runner:
+    name: "Start Bootstrap Runner"
+    runs-on: ubuntu-latest
+    needs: approval
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Start runner VM
+        run: |
+          az vm start \
+            --resource-group rg-bootstrap-shared \
+            --name vm-bootstrap-runner
+          sleep 30
+
+  import:
+    name: "Import InfraLive Resources"
+    runs-on: [self-hosted, azure]
+    needs: start_runner
+    permissions:
+      id-token: write
+      contents: read
+
+    defaults:
+      run:
+        working-directory: ./60-infralive-state
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.3
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Import existing Storage Account and container
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          account_id=$(az storage account show \
+            --name stinfralivest01 \
+            --resource-group rg-infralive-state \
+            --query id \
+            --output tsv)
+
+          container_id="${account_id}/blobServices/default/containers/tfstate-staging"
+
+          if terraform state list | grep -Fxq 'azurerm_storage_account.infralive_state'; then
+            echo "Storage Account already exists in Terraform state."
+          else
+            terraform import \
+              -input=false \
+              azurerm_storage_account.infralive_state \
+              "$account_id"
+          fi
+
+          if terraform state list | grep -Fxq 'azurerm_storage_container.terraform_state'; then
+            echo "Storage container already exists in Terraform state."
+          else
+            terraform import \
+              -input=false \
+              azurerm_storage_container.terraform_state \
+              "$container_id"
+          fi
+
+      - name: Terraform Plan After Import
+        run: terraform plan -input=false -no-color
+
+  stop_runner:
+    name: "Stop Bootstrap Runner"
+    runs-on: ubuntu-latest
+    needs:
+      - start_runner
+      - import
+    if: ${{ always() && needs.start_runner.result == 'success' }}
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Stop runner VM
+        run: |
+          az vm deallocate \
+            --resource-group rg-bootstrap-shared \
+            --name vm-bootstrap-runner
