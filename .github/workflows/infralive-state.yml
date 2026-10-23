@@ -1,0 +1,228 @@
+---
+name: 'Terraform Infra-Live'
+
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - '60-infralive-state/**'
+      - '.github/workflows/infralive-state.yml'
+  workflow_dispatch:
+
+
+concurrency:
+  group: infralive-state-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  start_runner:
+    name: "Start Bootstrap Runner"
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+
+      - name: Start runner VM
+        run: |
+          az vm start \
+             --resource-group rg-bootstrap-shared \
+             --name vm-bootstrap-runner
+          sleep 30
+
+
+  validate:
+    name: "Validate InfraLive State"
+    runs-on: [self-hosted, azure]
+    needs: start_runner
+    permissions:
+      id-token: write
+      contents: read
+
+    defaults:
+      run:
+        working-directory: ./60-infralive-state
+
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.3
+
+
+      - name: Terraform Format Check
+        run: terraform fmt -check
+
+      - name: Terraform init
+        run: terraform init -input=false
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform plan
+        run: |
+          terraform plan \
+            -input=false \
+            -no-color \
+            -out=plan.out
+
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: infralive-state-plan
+          path: 60-infralive-state/plan.out
+
+  stop_runner_plan:
+    name: "Stop Bootstrap Runner"
+    runs-on: ubuntu-latest
+    needs:
+      - start_runner
+      - validate
+    if: always()
+    permissions:
+      id-token: write
+      contents: read
+
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Stop runner VM
+        run: |
+          az vm deallocate \
+            --resource-group rg-bootstrap-shared \
+            --name vm-bootstrap-runner
+
+  approval:
+    name: "Approve Bootstrap Apply"
+    runs-on: ubuntu-latest
+    needs:
+      - validate
+      - stop_runner_plan
+    if: ${{ needs.validate.result == 'success' && needs.stop_runner_plan.result == 'success' }}
+    environment:
+      name: terraform-apply
+    permissions:
+      contents: read
+
+    steps:
+      - name: Approval received
+        run: echo "terraform-apply environment approved"
+
+  start_runner_apply:
+    name: "Start Bootstrap Runner for Apply"
+    runs-on: ubuntu-latest
+    needs: approval
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Start runner VM
+        run: |
+          az vm start \
+            --resource-group rg-bootstrap-shared \
+            --name vm-bootstrap-runner
+          sleep 30
+
+  apply:
+    name: "Apply InfraLive State"
+    runs-on: [self-hosted, azure]
+    needs: start_runner_apply
+    permissions:
+      id-token: write
+      contents: read
+
+    defaults:
+      run:
+        working-directory: ./60-infralive-state
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.14.3
+
+      - name: Terraform Init
+        run: terraform init -input=false
+
+      - name: Download approved plan
+        uses: actions/download-artifact@v4
+        with:
+          name: infralive-state-plan
+          path: 60-infralive-state
+
+      - name: Terraform Apply
+        run: terraform apply -input=false plan.out
+
+  stop_runner_apply:
+    name: "Stop Bootstrap Runner After Apply"
+    runs-on: ubuntu-latest
+    needs:
+      - start_runner_apply
+      - apply
+    if: always()
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Login to Azure using OIDC
+        uses: azure/login@v1
+        with:
+          client-id: ${{ vars.AZ_APPID_BOOTSTRAP }}
+          tenant-id: ${{ vars.AZ_TENANTID }}
+          subscription-id: ${{ vars.AZ_SUBSCRIPTION_ID }}
+
+      - name: Stop runner VM
+        run: |
+          az vm deallocate \
+            --resource-group rg-bootstrap-shared \
+            --name vm-bootstrap-runner

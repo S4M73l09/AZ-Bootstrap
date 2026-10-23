@@ -71,6 +71,166 @@ Cada etapa tiene su propio state en la misma Storage Account y contenedor, con `
 - `30-networking/` -> `30-networking.tfstate`
 - `40-shared-services/` -> `40-shared-services.tfstate`
 
+## Backend persistente de Az-InfraLive
+
+El state de `Az-InfraLive` es independiente del state de Bootstrap. No utiliza el
+container `tfboot` directamente, aunque el acceso al backend se realiza mediante
+la infraestructura privada y la identidad OIDC de Bootstrap.
+
+### Backend original de InfraLive
+
+Inicialmente, el backend de `Az-InfraLive` se encontraba en:
+
+```text
+Resource Group:  rg-infraLive-staging
+Storage Account: stinfralivest01
+Container:       tfstate-staging
+State key:       infra-staging.tfstate
+```
+
+Ese Resource Group solo contenía el Storage Account del backend. No debe eliminarse
+hasta completar la migración del state.
+
+### Diseño persistente previsto
+
+Bootstrap debe ser el propietario de un Resource Group separado para el state de
+InfraLive:
+
+```text
+rg-bootstrap-state-aq7yx
+└── stbootstraptfstateaq7yx/tfboot
+    └── Estados de Azure-Bootstrap
+
+rg-infralive-state
+└── stinfralivest01/tfstate-staging
+    └── infra-staging.tfstate
+```
+
+La etapa `60-infralive-state/` será gestionada por Bootstrap y utilizará una clave
+propia en el backend de Bootstrap, por ejemplo:
+
+```text
+60-infralive-state.tfstate
+```
+
+El flujo de migración es:
+
+1. Crear `rg-infralive-state` desde Bootstrap.
+2. Mover `stinfralivest01` desde `rg-infraLive-staging`.
+3. Importar el Resource Group, Storage Account y container en el state de Bootstrap.
+4. Actualizar el `backend.tf` de InfraLive con el nuevo Resource Group.
+5. Verificar el acceso al blob `infra-staging.tfstate`.
+6. Eliminar el antiguo Resource Group solo cuando esté vacío y el backend funcione.
+
+### Verificación del backend con Azure CLI
+
+Comprobar la suscripción activa antes de operar:
+
+```bash
+az account show --output table
+```
+
+Comprobar el Resource Group y los recursos que contiene:
+
+```bash
+az group show \
+  --name rg-infraLive-staging \
+  --output table
+
+az resource list \
+  --resource-group rg-infraLive-staging \
+  --query "[].{name:name,type:type,location:location}" \
+  --output table
+```
+
+Consultar el Storage Account del backend:
+
+```bash
+az storage account show \
+  --name stinfralivest01 \
+  --resource-group rg-infraLive-staging \
+  --query "{name:name,resourceGroup:resourceGroup,location:primaryLocation}" \
+  --output table
+```
+
+Comprobar el container y el blob de state usando Azure AD:
+
+```bash
+az storage container show \
+  --name tfstate-staging \
+  --account-name stinfralivest01 \
+  --auth-mode login \
+  --output table
+
+az storage blob show \
+  --account-name stinfralivest01 \
+  --container-name tfstate-staging \
+  --name infra-staging.tfstate \
+  --auth-mode login \
+  --query "{name:name,size:properties.contentLength,lastModified:properties.lastModified}" \
+  --output table
+```
+
+No se debe descargar ni imprimir el contenido del state, porque puede contener
+valores sensibles.
+
+### Comprobar red y permisos del backend
+
+El plano de administración puede consultar el Storage Account aunque el acceso al
+Blob esté restringido. Revisar siempre la configuración de red:
+
+```bash
+az storage account show \
+  --name stbootstraptfstateaq7yx \
+  --resource-group rg-bootstrap-state-aq7yx \
+  --query "{publicNetworkAccess:publicNetworkAccess,defaultAction:networkRuleSet.defaultAction}" \
+  --output table
+```
+
+Si `publicNetworkAccess` es `Disabled`, el acceso al container debe hacerse desde
+el runner self-hosted o desde una red privada autorizada. `az login` desde un
+equipo local no evita las reglas de red del Storage Account.
+
+Consultar los roles RBAC sobre el Storage Account:
+
+```bash
+STATE_ACCOUNT_ID=$(az storage account show \
+  --name stbootstraptfstateaq7yx \
+  --resource-group rg-bootstrap-state-aq7yx \
+  --query id \
+  --output tsv)
+
+az role assignment list \
+  --scope "$STATE_ACCOUNT_ID" \
+  --include-inherited \
+  --all \
+  --query "[].{principal:principalName,role:roleDefinitionName,scope:scope}" \
+  --output table
+```
+
+Terraform necesita `Storage Blob Data Contributor` para leer, bloquear y escribir
+el state. Este rol debe existir tanto para la identidad local que corresponda como
+para la identidad OIDC usada por el workflow.
+
+### Workflow de InfraLive State
+
+El workflow `.github/workflows/infralive-state.yml` ejecuta la etapa desde el
+runner privado:
+
+```text
+start_runner
+  -> terraform fmt / init / validate / plan
+  -> stop_runner_plan
+  -> aprobación del Environment terraform-apply
+  -> start_runner_apply
+  -> terraform apply del plan aprobado
+  -> stop_runner_apply
+```
+
+El job de `apply` no se ejecuta hasta que un revisor aprueba el Environment
+`terraform-apply` en GitHub. El runner se apaga antes de esperar la aprobación para
+evitar mantener una VM encendida innecesariamente.
+
 ## Gobernanza (10-governance)
 
 Se aplican policies al RG `rg-bootstrap-state-aq7yx`:
