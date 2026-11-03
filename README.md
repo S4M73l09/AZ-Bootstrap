@@ -129,6 +129,73 @@ Pendientes antes de eliminar el grupo antiguo:
 3. Confirmar que `rg-infraLive-staging` está vacío.
 4. Eliminar el grupo antiguo mediante una operación aprobada.
 
+### Backend de producción para InfraLive
+
+El backend de `main` se mantendrá separado del backend de `staging`, pero bajo la administración de Bootstrap.
+
+La configuración prevista es:
+
+```text
+rg-infralive-state
+└── stinfralivest01
+    ├── tfstate-staging
+    │   └── infra-staging.tfstate
+    └── tfstate-prod
+        └── infra-prod.tfstate
+```
+
+El contenedor `tfstate-prod` se declarara en:
+
+`60-infralive-state/main.tf`
+
+Bootstrap será su propietario real. El contenedor sera creado por `terraform apply` despues de la aprobacion.
+
+El backend de `main` utilizará:
+
+```hcl
+terraform {
+  backend "azurerm" {
+    resource_group_name  = "rg-infralive-state"
+    storage_account_name = "stinfralivest01"
+    container_name       = "tfstate-prod"
+    key                  = "infra-prod.tfstate"
+    use_azuread_auth     = true
+    use_cli              = true
+  }
+}
+```
+
+El flujo será:
+
+```text
+Añadir el contenedor a Bootstrap
+        ↓
+terraform fmt / validate / plan
+        ↓
+Revisión del plan
+        ↓
+Aprobación del workflow protegido
+        ↓
+terraform apply desde el runner
+        ↓
+terraform init desde InfraLive main
+```
+
+El OIDC de `main` utilizará una identidad independiente:
+
+```text
+oidc-infralive-main
+```
+
+con la credencial federada:
+```text
+repo:S4M73l09/Az-InfraLive:environment:prod
+```
+
+El permiso `Storage Blob Data Contributor` se asignará a esta identidad cuando el backend de producción esté creado.
+
+
+
 ### Verificación del backend con Azure CLI
 
 Comprobar la suscripción activa antes de operar:
@@ -175,6 +242,16 @@ az storage blob show \
   --name infra-staging.tfstate \
   --auth-mode login \
   --query "{name:name,size:properties.contentLength,lastModified:properties.lastModified}" \
+  --output table
+```
+
+Comprobar el container para verificar:
+
+```bash
+az storage container show \
+  --name tfstate-prod \
+  --account-name stinfralivest01 \
+  --auth-mode login \
   --output table
 ```
 

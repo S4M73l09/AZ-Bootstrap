@@ -29,3 +29,9 @@ resource "azurerm_storage_container" "terraform_state" {
   storage_account_name  = azurerm_storage_account.infralive_state.name
   container_access_type = "private"
 }
+
+resource "azurerm_storage_container" "terraform_state_prod" {
+  name                  = "tfstate-prod"
+  storage_account_name  = azurerm_storage_account.infralive_state.name
+  container_access_type = "private"
+}
